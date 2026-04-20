@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Симплекс метод</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    min-height: 100vh;
+  }
+
+  header {
+    background: #1d1d1f;
+    color: #fff;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  header h1 { font-size: 1.25rem; font-weight: 600; }
+  header span { font-size: 0.85rem; color: #888; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #444; text-transform: uppercase; letter-spacing: .05em; }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+
+  label { font-size: 0.875rem; color: #555; white-space: nowrap; }
+
+  input[type=number], select {
+    border: 1.5px solid #d2d2d7;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    width: 90px;
+    transition: border-color .15s;
+    outline: none;
+    background: #fff;
+  }
+  input[type=number]:focus, select:focus { border-color: #0071e3; }
+  select { width: auto; cursor: pointer; }
+
+  .coeff-label { font-size: 0.85rem; color: #888; min-width: 32px; text-align: center; }
+  .plus { font-size: 1rem; color: #aaa; padding: 0 2px; }
+  .leq { font-size: 1rem; color: #555; padding: 0 6px; }
+
+  .constraint-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: #f5f5f7;
+    border-radius: 8px;
+  }
+  .constraint-row .remove-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #c00;
+    font-size: 1.1rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .constraint-row .remove-btn:hover { background: #ffeaea; }
+
+  button {
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 9px 18px;
+    transition: background .15s;
+  }
+  .btn-primary { background: #0071e3; color: #fff; font-weight: 600; }
+  .btn-primary:hover { background: #005bb5; }
+  .btn-secondary { background: #e8e8ed; color: #333; }
+  .btn-secondary:hover { background: #d2d2d7; }
+  .btn-outline { background: transparent; border: 1.5px solid #0071e3; color: #0071e3; }
+  .btn-outline:hover { background: #e8f0fb; }
+
+  .button-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+  .result-box {
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .result-optimal { background: #e8f5e9; border: 1.5px solid #4caf50; }
+  .result-unbounded { background: #fff3e0; border: 1.5px solid #ff9800; }
+  .result-infeasible { background: #ffeaea; border: 1.5px solid #f44336; }
+
+  .result-box h3 { font-size: 1.05rem; margin-bottom: 10px; }
+  .result-box .values { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 8px; }
+  .result-box .val-item { font-size: 0.95rem; }
+  .result-box .val-item strong { font-size: 1.1rem; }
+
+  .example-hint { font-size: 0.8rem; color: #888; margin-top: 6px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Симплекс метод</h1>
+    <span>Лінійне програмування — лабораторна робота №2</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Налаштування задачі</h2>
+    <div class="row">
+      <label>Кількість змінних:</label>
+      <input type="number" id="n_vars" min="1" max="10" value="2">
+      <label>Тип задачі:</label>
+      <select id="objective">
+        <option value="max">Максимізація</option>
+        <option value="min">Мінімізація</option>
+      </select>
+      <button class="btn-secondary" onclick="buildForm()">Застосувати</button>
+    </div>
+  </div>
+
+  <div class="card" id="obj-card">
+    <h2>Цільова функція <span id="obj-type-label" style="color:#0071e3">(max)</span></h2>
+    <div id="obj-inputs" class="row"></div>
+  </div>
+
+  <div class="card" id="con-card">
+    <h2>Обмеження <small style="font-weight:400;color:#888">(≤, RHS ≥ 0)</small></h2>
+    <div id="constraints-list"></div>
+    <div class="button-row">
+      <button class="btn-outline" onclick="addConstraint()">+ Додати обмеження</button>
+      <button class="btn-secondary" onclick="loadExample()">Завантажити приклад з лаб.1</button>
+    </div>
+    <p class="example-hint">Приклад: задача «Українські фарби» — Z = 5x₁ + 4x₂ → max</p>
+  </div>
+
+  <div class="button-row" style="margin-bottom:20px">
+    <button class="btn-primary" onclick="solve()" style="padding:12px 32px;font-size:1rem">Розв'язати</button>
+    <button class="btn-secondary" onclick="reset()">Очистити</button>
+  </div>
+
+  <div id="result-area"></div>
+
+</div>
+
+<script>
+let nVars = 2;
+let constraintCount = 0;
+
+function buildForm() {
+  nVars = parseInt(document.getElementById('n_vars').value) || 2;
+  constraintCount = 0;
+  renderObjective();
+  document.getElementById('constraints-list').innerHTML = '';
+  document.getElementById('result-area').innerHTML = '';
+}
+
+function renderObjective() {
+  const obj = document.getElementById('objective').value;
+  document.getElementById('obj-type-label').textContent = obj === 'max' ? '(max →)' : '(min →)';
+  const div = document.getElementById('obj-inputs');
+  div.innerHTML = '';
+  for (let i = 0; i < nVars; i++) {
+    if (i > 0) {
+      const plus = document.createElement('span');
+      plus.className = 'plus'; plus.textContent = '+';
+      div.appendChild(plus);
+    }
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.value = '0';
+    inp.id = `c_${i}`; inp.style.width = '72px';
+    div.appendChild(inp);
+    const lbl = document.createElement('span');
+    lbl.className = 'coeff-label'; lbl.textContent = `x${i+1}`;
+    div.appendChild(lbl);
+  }
+}
+
+function addConstraint(coeffs, rhs) {
+  constraintCount++;
+  const id = constraintCount;
+  const div = document.createElement('div');
+  div.className = 'constraint-row';
+  div.id = `con_${id}`;
+
+  for (let i = 0; i < nVars; i++) {
+    if (i > 0) {
+      const plus = document.createElement('span');
+      plus.className = 'plus'; plus.textContent = '+';
+      div.appendChild(plus);
+    }
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any';
+    inp.value = (coeffs && coeffs[i] !== undefined) ? coeffs[i] : '0';
+    inp.id = `a_${id}_${i}`; inp.style.width = '72px';
+    div.appendChild(inp);
+    const lbl = document.createElement('span');
+    lbl.className = 'coeff-label'; lbl.textContent = `x${i+1}`;
+    div.appendChild(lbl);
+  }
+
+  const leq = document.createElement('span');
+  leq.className = 'leq'; leq.textContent = '≤';
+  div.appendChild(leq);
+
+  const rhsInp = document.createElement('input');
+  rhsInp.type = 'number'; rhsInp.step = 'any';
+  rhsInp.value = rhs !== undefined ? rhs : '0';
+  rhsInp.id = `b_${id}`;
+  div.appendChild(rhsInp);
+
+  const rm = document.createElement('button');
+  rm.className = 'remove-btn'; rm.textContent = '✕';
+  rm.onclick = () => div.remove();
+  div.appendChild(rm);
+
+  document.getElementById('constraints-list').appendChild(div);
+}
+
+function loadExample() {
+  nVars = 2;
+  document.getElementById('n_vars').value = 2;
+  document.getElementById('objective').value = 'max';
+  buildForm();
+
+  document.getElementById('c_0').value = 5;
+  document.getElementById('c_1').value = 4;
+
+  const cons = [
+    { coeffs: [6, 4], rhs: 24 },
+    { coeffs: [1, 2], rhs: 6 },
+    { coeffs: [-1, 1], rhs: 1 },
+    { coeffs: [0, 1], rhs: 2 },
+  ];
+  cons.forEach(c => addConstraint(c.coeffs, c.rhs));
+}
+
+function reset() {
+  buildForm();
+  document.getElementById('constraints-list').innerHTML = '';
+  document.getElementById('result-area').innerHTML = '';
+}
+
+function round6(v) {
+  return Math.round(v * 1000000) / 1000000;
+}
+
+async function solve() {
+  const objective = document.getElementById('objective').value;
+  const c = [];
+  for (let i = 0; i < nVars; i++) {
+    const v = parseFloat(document.getElementById(`c_${i}`).value);
+    c.push(isNaN(v) ? 0 : v);
+  }
+
+  const conRows = document.querySelectorAll('.constraint-row');
+  const A = [], b = [];
+  let valid = true;
+  conRows.forEach(row => {
+    const id = row.id.split('_')[1];
+    const rowCoeffs = [];
+    for (let i = 0; i < nVars; i++) {
+      const v = parseFloat(document.getElementById(`a_${id}_${i}`).value);
+      rowCoeffs.push(isNaN(v) ? 0 : v);
+    }
+    const rhs = parseFloat(document.getElementById(`b_${id}`).value);
+    if (isNaN(rhs)) { valid = false; return; }
+    A.push(rowCoeffs);
+    b.push(rhs);
+  });
+
+  if (!valid || A.length === 0) {
+    alert('Будь ласка, додайте хоча б одне обмеження та заповніть всі поля');
+    return;
+  }
+
+  const res = await fetch('/solve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ n_vars: nVars, c, A, b, objective })
+  });
+  const data = await res.json();
+
+  renderResult(data, c, objective);
+}
+
+function renderResult(data, c, objective) {
+  const area = document.getElementById('result-area');
+  if (data.error) {
+    area.innerHTML = `<div class="result-box result-infeasible"><h3>Помилка</h3><p>${data.error}</p></div>`;
+    return;
+  }
+
+  if (data.status === 'optimal') {
+    const objStr = c.map((ci, i) => `${ci}x${i+1}`).join(' + ');
+    const xVals = data.x.map((v, i) => `x${i+1} = <strong>${round6(v)}</strong>`).join(' &nbsp;|&nbsp; ');
+    area.innerHTML = `
+      <div class="result-box result-optimal">
+        <h3>✅ Оптимальний розв'язок знайдено</h3>
+        <p style="font-size:.85rem;color:#555;margin-bottom:8px">Z = ${objStr} → ${objective}</p>
+        <div class="values">
+          <div class="val-item">${xVals}</div>
+        </div>
+        <div style="margin-top:12px;font-size:1rem">
+          Оптимальне значення: <strong style="font-size:1.3rem;color:#2e7d32">Z = ${round6(data.obj)}</strong>
+        </div>
+      </div>`;
+  } else if (data.status === 'unbounded') {
+    area.innerHTML = `<div class="result-box result-unbounded"><h3>⚠️ Задача необмежена</h3><p>Цільова функція не має скінченного оптимуму.</p></div>`;
+  } else {
+    area.innerHTML = `<div class="result-box result-infeasible"><h3>❌ Задача не має допустимого розв'язку</h3><p>Перевірте обмеження (всі праві частини мають бути ≥ 0).</p></div>`;
+  }
+}
+
+buildForm();
+</script>
+</body>
+</html>
